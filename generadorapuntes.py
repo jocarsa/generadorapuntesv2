@@ -3,6 +3,7 @@ from tkinter import filedialog
 import os
 import json
 import html
+import re
 
 # Predefined Lorem Ipsum text
 Lorem_Ipsum_Text = """
@@ -50,6 +51,8 @@ def select_folder():
 
 def list_files_recursive(folder, depth=0, encoding="utf-8"):
     contents = []
+    headings_numbering = [0] * 6
+    
     for root, dirs, files in os.walk(folder):
         # Filter out directories starting with a dot
         dirs[:] = [d for d in dirs if not d.startswith('.')]
@@ -66,15 +69,19 @@ def list_files_recursive(folder, depth=0, encoding="utf-8"):
             except Exception as e:
                 print(f"Error creating 000-Explicación.acomment file for '{root}': {e}")
         
+        # Reset numbering for the sections
+        for i in range(depth + 1, len(headings_numbering)):
+            headings_numbering[i] = 0
+        
+
         for file in files:
             file_name, file_extension = os.path.splitext(file)
             file_name_without_extension = file_name.rsplit('-', 1)[-1].strip()  # Remove initial numbering
             file_path = os.path.join(root, file)
-            file_structure = {"name": file_name_without_extension, "depth": depth +1, "type": "File", "path": file_path}
+            file_structure = {"name": file_name_without_extension, "depth": depth + 1, "type": "File", "path": file_path}
             
             # Check if the file is not already a .acomment file and if a corresponding .acomment file exists, if not, create it
-            print(file_name)
-            if  not 'acomment' in file.lower():
+            if not 'acomment' in file.lower():
                 acomment_file_path = os.path.join(root, f"{file_name}.acomment{file_extension}")
                 if not os.path.exists(acomment_file_path):
                     try:
@@ -83,6 +90,9 @@ def list_files_recursive(folder, depth=0, encoding="utf-8"):
                     except Exception as e:
                         print(f"Error creating .acomment file for '{file_path}': {e}")
             
+            contents.append(file_structure)
+            
+            # Read file content and append to the structure
             try:
                 with open(file_path, "r", encoding=encoding) as f:
                     file_content = f.read()
@@ -110,13 +120,44 @@ def list_files_recursive(folder, depth=0, encoding="utf-8"):
                     print(f"All encodings failed for file '{file_path}'. Skipping.")
             except Exception as e:
                 print(f"Error reading file '{file_path}': {e}")
+                
             contents.append(file_structure)
-        for directory in dirs:
-            contents.extend(list_files_recursive(os.path.join(root, directory), depth + 1))
+        
+        # Increment numbering for the next level
+        headings_numbering[depth + 1] += 1
+    print("voy a imprimir la respuesta")
+    print(contents)
     return contents
 
+
+
+def nl2br(text):
+    """Convert newline characters to HTML line break tags."""
+    return text.replace('\n', '<br>')
+def surround_double_asterisks_with_bold(text):
+    # Define a regular expression pattern to find double asterisks
+    pattern = r'\*\*(.*?)\*\*'
+    
+    # Replace double asterisks with <b> and </b> tags
+    replaced_text = re.sub(pattern, r'<b>\1</b>', text)
+    
+    return replaced_text
+
+def surround_triple_backticks_with_pre(text):
+    # Define a regular expression pattern to find triple backticks
+    pattern = r'```(.*?)```'
+    
+    # Replace triple backticks with <pre> and </pre> tags
+    replaced_text = re.sub(pattern, r'<pre>\1</pre>', text, flags=re.DOTALL)
+    
+    return replaced_text
+
+def get_heading_number(headings_numbering, depth, heading_content):
+    numbering = ".".join(str(x) for x in headings_numbering[1:depth + 1]) + ".-"
+    return numbering + " " + heading_content
+
 def generate_html(folder_path, folder_contents):
-    html_filename = "libros/"+os.path.basename(folder_path) + ".html"
+    html_filename = "libros/" + os.path.basename(folder_path) + ".html"
     pre_html_content = read_file_content("pre.html")
     post_html_content = read_file_content("post.html")
     
@@ -126,29 +167,39 @@ def generate_html(folder_path, folder_contents):
 
         html_file.write("<section><h1 class='titulo'>"+datosjson['titulo']+"</h1><h2 class='subtitulo'>"+datosjson['subtitulo']+"</h2><h3 class='autor'>"+datosjson['autor']+"</h3></section><header>"+datosjson['cabecera']+"</header><footer>"+datosjson['piedepagina']+"</footer>")
         
-        
+        # Initialize variables to keep track of numbering
+        headings_numbering = [0] * 6
+        nav_headings_numbering = [0] * 6
+
         # Generate Table of Contents
         html_file.write("<h1>Tabla de contenido</h1>\n")
         html_file.write("<nav>\n")
         for item in folder_contents:
             if item["type"] == "Folder":
-                html_file.write("<h{}><a href='#{}'>{}</a></h{}>\n".format(min(item["depth"] + 1, 6)-1, item["name"], item["name"], min(item["depth"] + 1, 6)-1))
+                headings_numbering[item["depth"]] += 1
+                nav_headings_numbering[item["depth"]] += 1
+                html_file.write("<h{}><a href='#{}'>{}</a></h{}>\n".format(item["depth"], item["name"], get_heading_number(nav_headings_numbering, item["depth"], item["name"]), item["depth"]))
+                # Reset numbering for the sections
+                for i in range(item["depth"] + 1, len(headings_numbering)):
+                    headings_numbering[i] = 0
         html_file.write("</nav>\n")
         html_file.write("<section>\n")
+
         # Write the content of each item in the folder
         for item in folder_contents:
-            #print(item)
             if item["type"] == "Folder":
-                html_file.write("<h{} id='{}'>{}</h{}>\n".format(min(item["depth"] + 1, 6)-1, item["name"], item["name"], min(item["depth"] + 1, 6)-1))
+                headings_numbering[item["depth"]] += 1
+                html_file.write("<h{} id='{}'>{}</h{}>\n".format(item["depth"], item["name"], get_heading_number(headings_numbering, item["depth"], item["name"]), item["depth"]))
             else:
                 if "content" in item:
-                    if "acomment" in item["path"]:  # Check if "acomment" is present in the filename
+                    if "acomment" in item["path"]:
                         html_file.write("<p class='negrita'>{}</p>\n".format(item["name"]))
-                        html_file.write("<p>{}</p>\n".format(item["content"]))  # Place content inside <p> tag for .acomment files
+                        html_file.write("<p>{}</p>\n".format(surround_triple_backticks_with_pre(surround_double_asterisks_with_bold(nl2br(item["content"])))))
                     else:
-                        html_file.write("<p class='archivo'><span class='boton rojo'></span><span class='boton amarillo'></span><span class='boton verde'></span>{}</p>\n".format(item["name"]))  # Place file name inside <p> tag for regular files
-                        html_file.write("<pre>{}</pre>\n".format(item["content"]))  # Place content inside <pre> tag for regular files
+                        html_file.write("<p class='archivo'><span class='boton rojo'></span><span class='boton amarillo'></span><span class='boton verde'></span>{}</p>\n".format(item["name"]))
+                        html_file.write("<pre>{}</pre>\n".format(item["content"]))
         html_file.write("</section>")
+
         # Write the post-HTML content
         html_file.write(post_html_content)
     
