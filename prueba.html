@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Line Numbering with CSS</title>
+<style>
+  pre {
+    counter-reset: line;
+    white-space: pre-wrap; /* To handle wrapping */
+  }
+  pre code {
+    position: relative;
+  }
+  pre code:before {
+    content: counter(line);
+    counter-increment: line;
+    position: absolute;
+    left: 0;
+    width: 2em;
+    text-align: right;
+    color: #999;
+    pointer-events: none; /* Allows clicking through the line numbers */
+  }
+</style>
+</head>
+<body>
+
+<pre><code>
+function factorial(n) {
+  if (n === 0) {
+    return 1;
+  } else {
+    return n * factorial(n - 1);
+  }
+}
+
+console.log(factorial(5));
+</code></pre>
+
+</body>
+</html>
